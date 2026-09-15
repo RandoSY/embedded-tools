@@ -1,0 +1,15 @@
+[submodule "source-snapshots/avr-asm-revelator"]
+	path = source-snapshots/avr-asm-revelator
+	url = https://github.com/RandoSY/avr-asm-revelator.git
+[submodule "source-snapshots/xc8-asm-revelator"]
+	path = source-snapshots/xc8-asm-revelator
+	url = https://github.com/RandoSY/xc8-asm-revelator.git
+[submodule "source-snapshots/rp2040-experiments"]
+	path = source-snapshots/rp2040-experiments
+	url = https://github.com/RandoSY/rp2040_Experiments.git
+[submodule "source-snapshots/microbit-v2-ble-uart"]
+	path = source-snapshots/microbit-v2-ble-uart
+	url = https://github.com/RandoSY/microbit_v2_ble_uart.git
+[submodule "source-snapshots/ble-uart-echo-demo"]
+	path = source-snapshots/ble-uart-echo-demo
+	url = https://github.com/RandoSY/ble-uart-echo-demo.git
