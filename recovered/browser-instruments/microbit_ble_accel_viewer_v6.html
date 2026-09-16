@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>micro:bit V2 Zephyr BLE IMU Viewer v6</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{
+    font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+    color:#173047;
+    background:#f6fbff;
+  }
+  body{margin:0;padding:22px}
+  .wrap{max-width:1180px;margin:auto}
+  h1{margin:0 0 4px;font-size:30px}
+  .sub{color:#577286;margin-bottom:18px}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+  button{
+    border:0;border-radius:12px;padding:12px 16px;
+    font-weight:800;background:#2f9ed8;color:white;cursor:pointer
+  }
+  button.secondary{background:#e7f2f8;color:#173047}
+  .status{font-weight:800;margin-left:4px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+  .card{
+    background:white;border:1px solid #d6e8f2;border-radius:18px;
+    padding:18px;box-shadow:0 8px 22px #d8e7ef80
+  }
+  .label{font-size:12px;letter-spacing:.08em;color:#638095;text-transform:uppercase;font-weight:800}
+  .value{font-size:34px;font-weight:900;margin-top:5px}
+  .small{font-size:16px;color:#547083}
+  pre{height:290px;overflow:auto;background:#0d1b2a;color:#e7f6ff;border-radius:14px;padding:14px}
+  code{background:#edf6fb;padding:2px 6px;border-radius:6px}
+  @media(max-width:850px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>micro:bit V2 Zephyr BLE IMU Viewer v6</h1>
+  <div class="sub">
+    Stable teaching stream: <code>READY</code>, <code>I,&lt;ax_mg&gt;,&lt;ay_mg&gt;,&lt;az_mg&gt;</code>, <code>A,&lt;count&gt;</code>, <code>B,&lt;count&gt;</code>
+  </div>
+
+  <div class="bar">
+    <button id="connect">Connect BLE</button>
+    <button class="secondary" id="disconnect">Disconnect</button>
+    <button class="secondary" id="sendA">Send A</button>
+    <button class="secondary" id="sendB">Send B</button>
+    <button class="secondary" id="sendHelp">Send HELP</button>
+    <span class="status" id="status">Not connected</span>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="label">AX</div><div class="value" id="ax">—</div><div class="small">g</div></div>
+    <div class="card"><div class="label">AY</div><div class="value" id="ay">—</div><div class="small">g</div></div>
+    <div class="card"><div class="label">AZ</div><div class="value" id="az">—</div><div class="small">g</div></div>
+    <div class="card"><div class="label">Dominant axis</div><div class="value" id="dominant">—</div></div>
+    <div class="card"><div class="label">Button A count</div><div class="value" id="buttonA">0</div></div>
+    <div class="card"><div class="label">Button B count</div><div class="value" id="buttonB">0</div></div>
+  </div>
+
+  <h2>BLE log</h2>
+  <pre id="log"></pre>
+</div>
+
+<script>
+const NUS_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+let device, server, rxChar, txChar;
+let buffer = '';
+
+const $ = id => document.getElementById(id);
+
+function log(s){
+  const el = $('log');
+  el.textContent += s + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+function setStatus(s){ $('status').textContent = s; }
+
+function updateCompactLine(line){
+  const parts = line.trim().split(',');
+
+  if(line === 'READY'){
+    setStatus('Notifications enabled');
+    return true;
+  }
+
+  if(parts[0] === 'I' && parts.length >= 4){
+    const ax = Number(parts[1]) / 1000;
+    const ay = Number(parts[2]) / 1000;
+    const az = Number(parts[3]) / 1000;
+
+    $('ax').textContent = ax.toFixed(3);
+    $('ay').textContent = ay.toFixed(3);
+    $('az').textContent = az.toFixed(3);
+
+    const vals = [
+      ['X', Math.abs(ax), ax],
+      ['Y', Math.abs(ay), ay],
+      ['Z', Math.abs(az), az]
+    ].sort((a,b)=>b[1]-a[1]);
+
+    $('dominant').textContent = vals[0][0] + (vals[0][2] >= 0 ? '+' : '-');
+    return true;
+  }
+
+  if(parts[0] === 'A' && parts.length >= 2){
+    $('buttonA').textContent = parts[1];
+    return true;
+  }
+
+  if(parts[0] === 'B' && parts.length >= 2){
+    $('buttonB').textContent = parts[1];
+    return true;
+  }
+
+  if(parts[0] === 'HELP'){
+    return true;
+  }
+
+  return false;
+}
+
+async function connect(){
+  if(!navigator.bluetooth){
+    log('Web Bluetooth is not available in this browser.');
+    return;
+  }
+
+  device = await navigator.bluetooth.requestDevice({
+    filters:[{namePrefix:'MB2_ZEPHYR_IMU'}],
+    optionalServices:[NUS_SERVICE]
+  });
+
+  device.addEventListener('gattserverdisconnected', () => {
+    setStatus('Disconnected');
+    log('Disconnected');
+  });
+
+  server = await device.gatt.connect();
+  const svc = await server.getPrimaryService(NUS_SERVICE);
+  rxChar = await svc.getCharacteristic(NUS_RX);
+  txChar = await svc.getCharacteristic(NUS_TX);
+
+  await txChar.startNotifications();
+  txChar.addEventListener('characteristicvaluechanged', ev => {
+    const chunk = new TextDecoder().decode(ev.target.value);
+    buffer += chunk;
+
+    let idx;
+    while((idx = buffer.indexOf('\n')) >= 0){
+      const line = buffer.slice(0, idx).trim();
+      buffer = buffer.slice(idx + 1);
+      if(!line) continue;
+      log(line);
+
+      if(!updateCompactLine(line)){
+        log('Unrecognized line: ' + line);
+      }
+    }
+  });
+
+  setStatus('Connected to ' + device.name);
+  log('Connected to ' + device.name);
+}
+
+async function send(cmd){
+  if(!rxChar){
+    log('Not connected');
+    return;
+  }
+  await rxChar.writeValueWithoutResponse(new TextEncoder().encode(cmd + '\n'));
+  log('>>> ' + cmd);
+}
+
+$('connect').onclick = () => connect().catch(e => log('Connect error: ' + e));
+$('disconnect').onclick = () => {
+  if(device && device.gatt.connected) device.gatt.disconnect();
+};
+$('sendA').onclick = () => send('A');
+$('sendB').onclick = () => send('B');
+$('sendHelp').onclick = () => send('HELP');
+</script>
+</body>
+</html>
