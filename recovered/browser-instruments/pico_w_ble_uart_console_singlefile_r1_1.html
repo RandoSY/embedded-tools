@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<!-- pico_w_ble_uart_console_r1.html -->
+<!-- Release: r1.0 -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pico W BLE UART Console</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#121821;
+      --panel-2:#18202b;
+      --border:#253041;
+      --text:#e6edf3;
+      --muted:#9fb0c3;
+      --accent:#4da3ff;
+      --accent-2:#66d9a3;
+      --warn:#ffb454;
+      --danger:#ff6b6b;
+      --shadow:0 12px 28px rgba(0,0,0,.35);
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Segoe UI, Arial, Helvetica, sans-serif}
+    body{display:flex;justify-content:center;align-items:stretch;padding:14px}
+    .app{width:min(1200px, 100%);height:calc(100vh - 28px);display:grid;grid-template-rows:auto auto 1fr;gap:12px;}
+    .card{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);}
+    .header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;}
+    .title-wrap{display:flex;flex-direction:column;gap:4px}.title{font-size:1.35rem;font-weight:700;letter-spacing:.2px}.subtitle{color:var(--muted);font-size:.92rem}
+    .status-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 18px 16px 18px;}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.03);font-size:.92rem}
+    .dot{width:10px;height:10px;border-radius:50%}.dot.off{background:var(--danger)}.dot.on{background:var(--accent-2)}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap}
+    button{border:none;border-radius:12px;background:#243142;color:var(--text);padding:10px 14px;font-size:.95rem;cursor:pointer;transition:transform .05s ease, opacity .15s ease, background .15s ease;}
+    button:hover{background:#2c3c52}button:active{transform:translateY(1px)}button.primary{background:var(--accent);color:#081018;font-weight:700}button.primary:hover{filter:brightness(1.05)}button.good{background:#1d5a42}button.warn{background:#6b4b1f}button.danger{background:#6a2630}button:disabled{opacity:.45;cursor:not-allowed}
+    .tabbar{display:flex;gap:8px;padding:10px}.tab{flex:1;min-width:0;border:1px solid var(--border);background:#131b26;color:var(--muted);padding:12px 14px;border-radius:12px;text-align:center;font-weight:600}.tab.active{color:var(--text);background:#1b2635;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+    .main{min-height:0;display:grid;grid-template-rows:1fr;padding:10px}.panel{display:none;min-height:0;height:100%;gap:12px}.panel.active{display:grid}#panel-console{grid-template-columns:1.2fr .8fr}#panel-controls{grid-template-columns:1fr 1fr}#panel-help{grid-template-columns:1fr}
+    .section{display:flex;flex-direction:column;min-height:0;padding:14px;gap:12px}.section h2{margin:0;font-size:1rem;letter-spacing:.2px}.section p,.section li{color:var(--muted);line-height:1.4}
+    .terminal{flex:1;min-height:0;background:#05080d;border:1px solid #1f2a38;border-radius:14px;padding:12px;overflow:auto;font-family:Consolas, "Courier New", monospace;font-size:.94rem;white-space:pre-wrap;word-break:break-word}.line-rx{color:#b9fbc0}.line-tx{color:#9fd3ff}.line-sys{color:#ffcf99}.line-err{color:#ff9b9b}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.field{display:flex;flex-direction:column;gap:6px}label{font-size:.88rem;color:var(--muted)}
+    input, textarea, select{width:100%;border:1px solid var(--border);background:#0e141d;color:var(--text);border-radius:12px;padding:11px 12px;font-size:.96rem;outline:none}textarea{resize:none;min-height:120px;flex:1}.tiny{font-size:.82rem;color:var(--muted)}
+    .kv{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;align-items:start;font-size:.94rem}.kv div:nth-child(odd){color:var(--muted)}.footer-note{color:var(--muted);font-size:.85rem;text-align:right;padding:0 6px 4px 6px}code.inline{background:#0e141d;border:1px solid var(--border);padding:2px 6px;border-radius:8px}
+    @media (max-width: 940px){.app{height:auto;min-height:calc(100vh - 28px)}#panel-console,#panel-controls{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="header">
+        <div class="title-wrap"><div class="title">Pico W BLE UART Console</div><div class="subtitle">Dark-theme Web Bluetooth terminal for your MicroPython NUS demo (single-file friendly)</div></div>
+        <div class="toolbar"><button id="connectBtn" class="primary">Connect</button><button id="disconnectBtn" class="danger" disabled>Disconnect</button><button id="clearBtn">Clear Log</button></div>
+      </div>
+      <div class="status-row"><div class="pill"><span id="statusDot" class="dot off"></span><span id="statusText">Disconnected</span></div><div class="pill">Device: <strong id="deviceName">—</strong></div><div class="pill">Service: <code class="inline">6E400001-B5A3-F393-E0A9-E50E24DCCA9E</code></div></div>
+    </div>
+    <div class="card tabbar"><button class="tab active" data-panel="panel-console">Console</button><button class="tab" data-panel="panel-controls">Controls</button><button class="tab" data-panel="panel-help">Help</button></div>
+    <div class="card main">
+      <div id="panel-console" class="panel active">
+        <div class="section"><h2>Terminal</h2><div id="terminal" class="terminal"></div><div class="tiny">Incoming notifications from the Pico appear here. Your script sends <code class="inline">tick N</code> once per second when connected and echoes your text back.</div></div>
+        <div class="section"><h2>Send Text</h2><div class="field"><label for="sendText">Message</label><textarea id="sendText" placeholder="Type a line to send over BLE UART..."></textarea></div><div class="grid2"><button id="sendBtn" class="good" disabled>Send Line</button><button id="sendRawBtn" class="warn" disabled>Send Raw</button></div><div class="field"><label><input id="appendNewline" type="checkbox" checked style="width:auto;margin-right:8px">Append CR/LF to Send Line</label></div></div>
+      </div>
+      <div id="panel-controls" class="panel">
+        <div class="section"><h2>Quick Commands</h2><div class="grid3"><button class="quickBtn" data-text="hello">hello</button><button class="quickBtn" data-text="status">status</button><button class="quickBtn" data-text="ping">ping</button><button class="quickBtn" data-text="led on">led on</button><button class="quickBtn" data-text="led off">led off</button><button class="quickBtn" data-text="help">help</button></div><div class="tiny">Your current Pico script only echoes text, so these are mainly convenience buttons for testing. Later, if you add commands in MicroPython, this page is already ready.</div></div>
+        <div class="section"><h2>Connection Details</h2><div class="kv"><div>Expected device name</div><div><code class="inline">PicoW-UART</code></div><div>UART service UUID</div><div><code class="inline">6E400001-B5A3-F393-E0A9-E50E24DCCA9E</code></div><div>TX characteristic</div><div><code class="inline">6E400003-B5A3-F393-E0A9-E50E24DCCA9E</code> (notifications from Pico to browser)</div><div>RX characteristic</div><div><code class="inline">6E400002-B5A3-F393-E0A9-E50E24DCCA9E</code> (writes from browser to Pico)</div></div><div class="field"><label for="customText">Custom one-click send</label><input id="customText" type="text" value="test 123" /></div><button id="sendCustomBtn" disabled>Send Custom Text</button></div>
+      </div>
+      <div id="panel-help" class="panel"><div class="section"><h2>How to Run It</h2><ol><li>Copy your BLE script to the Pico W as <code class="inline">main.py</code> and reset the board.</li><li>First try opening this HTML directly as a local file in Chrome or Edge. Many Chromium setups treat <code class="inline">file:</code> as trustworthy for secure-context features.</li><li>Open the page in Chrome or Edge, click <strong>Connect</strong>, and pick <code class="inline">PicoW-UART</code>.</li><li>After connection, you should see the Pico’s <code class="inline">tick N</code> messages arrive once per second.</li></ol><h2>Fallback if direct-open is blocked</h2><div class="terminal">python -m http.server 8000</div><div class="tiny">Then browse to <code class="inline">http://localhost:8000/pico_w_ble_uart_console_singlefile_r1_1.html</code></div><h2>Notes</h2><ul><li>This page talks to the standard Nordic UART Service used by your Pico script.</li><li>The browser acts as the BLE central; the Pico W script is the BLE peripheral.</li><li>If you later move to JSON messages, command packets, or tabs for sensors, this page is a good starting shell.</li></ul></div></div>
+    </div>
+    <div class="footer-note">Release r1.0</div>
+  </div>
+  <script>
+    "use strict";
+    const UART_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+    const UART_RX_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+    const UART_TX_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+    let bleDevice=null,gattServer=null,uartService=null,rxCharacteristic=null,txCharacteristic=null;
+    const encoder=new TextEncoder(), decoder=new TextDecoder();
+    const terminal=document.getElementById("terminal"),connectBtn=document.getElementById("connectBtn"),disconnectBtn=document.getElementById("disconnectBtn"),clearBtn=document.getElementById("clearBtn"),sendBtn=document.getElementById("sendBtn"),sendRawBtn=document.getElementById("sendRawBtn"),sendCustomBtn=document.getElementById("sendCustomBtn"),sendText=document.getElementById("sendText"),customText=document.getElementById("customText"),appendNewline=document.getElementById("appendNewline"),statusText=document.getElementById("statusText"),statusDot=document.getElementById("statusDot"),deviceName=document.getElementById("deviceName");
+    function secureContextSummary(){const proto=window.location.protocol||"(unknown)";return `Origin mode: ${proto} | isSecureContext=${window.isSecureContext}`}
+    function nowStamp(){return new Date().toLocaleTimeString()}
+    function addLine(text,cls="line-sys"){const row=document.createElement("div");row.className=cls;row.textContent=`[${nowStamp()}] ${text}`;terminal.appendChild(row);terminal.scrollTop=terminal.scrollHeight}
+    function setConnectedUI(connected){statusText.textContent=connected?"Connected":"Disconnected";statusDot.classList.toggle("on",connected);statusDot.classList.toggle("off",!connected);connectBtn.disabled=connected;disconnectBtn.disabled=!connected;sendBtn.disabled=!connected;sendRawBtn.disabled=!connected;sendCustomBtn.disabled=!connected}
+    function onDisconnected(){addLine("Device disconnected.","line-err");bleDevice=null;gattServer=null;uartService=null;rxCharacteristic=null;txCharacteristic=null;deviceName.textContent="—";setConnectedUI(false)}
+    async function connect(){if(!navigator.bluetooth){addLine("Web Bluetooth is not available in this browser.","line-err");return}try{addLine("Requesting BLE device...","line-sys");bleDevice=await navigator.bluetooth.requestDevice({filters:[{services:[UART_SERVICE_UUID]}],optionalServices:[UART_SERVICE_UUID]});bleDevice.addEventListener("gattserverdisconnected",onDisconnected);deviceName.textContent=bleDevice.name||"(unnamed device)";addLine(`Selected device: ${deviceName.textContent}`,"line-sys");gattServer=await bleDevice.gatt.connect();addLine("Connected to GATT server.","line-sys");uartService=await gattServer.getPrimaryService(UART_SERVICE_UUID);rxCharacteristic=await uartService.getCharacteristic(UART_RX_UUID);txCharacteristic=await uartService.getCharacteristic(UART_TX_UUID);await txCharacteristic.startNotifications();txCharacteristic.addEventListener("characteristicvaluechanged",handleNotification);setConnectedUI(true);addLine("UART service ready. Waiting for notifications...","line-sys")}catch(err){addLine(`Connect error: ${err.message}`,"line-err");console.error(err);setConnectedUI(false)}}
+    function handleNotification(event){const value=event.target.value;const text=decoder.decode(value.buffer);const clean=text.replace(/\r/g,"");clean.split("\n").forEach(part=>{if(part.length)addLine(part,"line-rx")})}
+    async function sendTextData(text){if(!rxCharacteristic){addLine("Not connected.","line-err");return}try{await rxCharacteristic.writeValueWithoutResponse(encoder.encode(text));addLine(text.replace(/\r/g,"\\r").replace(/\n/g,"\\n"),"line-tx")}catch(err){addLine(`Send error: ${err.message}`,"line-err");console.error(err)}}
+    async function sendLine(){let text=sendText.value;if(appendNewline.checked)text+="\r\n";await sendTextData(text)}
+    async function sendRaw(){await sendTextData(sendText.value)}
+    async function disconnect(){try{if(bleDevice?.gatt?.connected)bleDevice.gatt.disconnect()}catch(err){addLine(`Disconnect error: ${err.message}`,"line-err")}finally{onDisconnected()}}
+    function setupTabs(){document.querySelectorAll(".tab").forEach(tab=>{tab.addEventListener("click",()=>{const panelId=tab.dataset.panel;document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));tab.classList.add("active");document.getElementById(panelId).classList.add("active")})})}
+    connectBtn.addEventListener("click",connect);disconnectBtn.addEventListener("click",disconnect);clearBtn.addEventListener("click",()=>terminal.textContent="");sendBtn.addEventListener("click",sendLine);sendRawBtn.addEventListener("click",sendRaw);sendCustomBtn.addEventListener("click",()=>sendTextData(customText.value+"\r\n"));sendText.addEventListener("keydown",event=>{if((event.ctrlKey||event.metaKey)&&event.key==="Enter")sendLine()});document.querySelectorAll(".quickBtn").forEach(btn=>btn.addEventListener("click",()=>sendTextData(btn.dataset.text+"\r\n")));
+    setupTabs();setConnectedUI(false);addLine("Console ready. Try opening this HTML directly in Chrome or Edge first, then click Connect.","line-sys");addLine(secureContextSummary(),window.isSecureContext?"line-sys":"line-err");if(!window.isSecureContext)addLine("This browser did not grant a secure context for the current origin. If Connect fails, use localhost as fallback.","line-err");
+  </script>
+</body>
+</html>
